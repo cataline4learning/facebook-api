@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://unpkg.com/vue@next"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600&display=swap');
+
+      /* Reset */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      a {
+        color: unset;
+        text-decoration: none;
+      }
+
+      /*Main Styles*/
+      body {
+        font-family: 'Raleway', sans-serif;
+      }
+      body,
+      html {
+        height: 100%;
+      }
+
+      #app {
+        background: #e3f2fd;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 600px;
+        justify-content: center;
+        align-content: center;
+      }
+
+      .chat-container {
+        background: #f9f8fe;
+        box-shadow: 0px 0px 24px rgb(0 0 0 / 9%);
+        border-radius: 12px;
+        height: 550px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .top {
+        display: grid;
+        grid-auto-flow: column;
+        justify-content: space-between;
+        align-items: center;
+        padding: 25px;
+        box-shadow: 0px 5px 9px rgb(0 0 0 / 9%);
+      }
+      .online-badge {
+        display: block;
+        width: 12px;
+        height: 12px;
+        background: #44bf44;
+        border-radius: 100%;
+      }
+
+      .messages {
+        padding: 0 25px;
+        display: grid;
+        justify-items: start;
+        align-content: start;
+        grid-gap: 1.4rem;
+        overflow-y: scroll;
+      }
+
+      .messages p {
+        max-width: 70%;
+        color: white;
+        padding: 20px;
+        border-radius: 30px;
+      }
+
+      .my-message {
+        justify-self: end;
+        background: #2979ff;
+      }
+      .contact-message {
+        justify-self: start;
+        background: #e4dfdf;
+        color: black !important;
+      }
+
+      form {
+        padding: 10px 25px;
+        padding-bottom: 20px;
+        display: grid;
+        grid-template-columns: 1fr 90px;
+        grid-gap: 1rem;
+      }
+
+      form input {
+        outline: none;
+        border: none;
+        height: 3rem;
+        padding: 13px;
+        box-shadow: 0px 0px 24px rgb(0 0 0 / 9%);
+        font-size: 1.1rem;
+      }
+
+      form button {
+        border: none;
+        outline: none;
+        background: #00bcd4;
+        color: white;
+        border-radius: 12px;
+        cursor: pointer;
+      }
+
+      /*Scroll styles */
+      .messages::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      .messages::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 20px;
+      }
+
+      .messages::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+
+      .messages::-webkit-scrollbar-track {
+        background: #e6e6e6;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div class="chat-container">
+        <div class="top">
+          <h3>Chat</h3>
+        </div>
+        <div class="messages">
+          <p
+            v-for="message in messages"
+            v-text="message.content"
+            :class="messageClassName(message.userId)"
+          ></p>
+        </div>
+        <form @submit.prevent="sendMessage">
+          <input type="text" placeholder="Digite sua mensagem" v-model="content" />
+          <button>Enviar</button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const api = axios.create({
+        baseURL: new URLSearchParams(window.location.search).get('url'),
+        headers: {
+          Authorization: `bearer ${new URLSearchParams(window.location.search).get('token')}`
+        }
+      })
+
+      const app = Vue.createApp({
+        data() {
+          return {
+            userId: Number(new URLSearchParams(window.location.search).get('userId')),
+            receiverId: Number(new URLSearchParams(window.location.search).get('receiverId')),
+            conversationId: Number(
+              new URLSearchParams(window.location.search).get('conversationId')
+            ),
+            content: '',
+            messages: []
+          }
+        },
+        async created() {
+          const socket = io(new URLSearchParams(window.location.search).get('url'))
+
+          socket.emit('create', `room-${this.conversationId}`)
+
+          socket.on('newMessage', ({ content, userId }) => {
+            this.messages.push({ content, userId })
+          })
+
+          this.fetchConversation()
+        },
+        methods: {
+          async sendMessage() {
+            const message = await api.post('/messages', {
+              content: this.content,
+              receiverId: this.receiverId
+            })
+
+            this.content = ''
+          },
+          async fetchConversation() {
+            const { data } = await api.get(`/conversations/${this.conversationId}`)
+
+            this.messages = data.messages
+          },
+          messageClassName(userId) {
+            return userId === this.userId ? 'my-message' : 'contact-message'
+          }
+        }
+      })
+
+      app.mount('#app')
+    </script>
+  </body>
+</html>
